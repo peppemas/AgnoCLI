@@ -1,0 +1,6 @@
+workflows_module: examples.sample_agents
+default_workflow: basic
+markdown:
+  render: true
+ansi:
+  force: false
