@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from typing import Dict, List, Optional
+import shlex
+import inspect
 
 import click
 import typer
@@ -32,6 +34,17 @@ def _ensure_discovery(cfg_module: Optional[str]):
     if not cfg_module:
         raise typer.Exit("workflows_module is not configured in agnocli.yaml and not provided via --module")
     discover_from_module(cfg_module)
+
+def _should_render_markdown(
+    markdown_option: Optional[bool],
+    wf: Workflow,
+    cfg_render_default: bool,
+) -> bool:
+    if markdown_option is not None:
+        return markdown_option
+    if wf.render_markdown is not None:
+        return wf.render_markdown
+    return cfg_render_default
 
 
 @app.callback()
@@ -118,7 +131,7 @@ def run(
     result = run_workflow(wf, params)
 
     console = get_console(cfg.ansi.force)
-    render_md = cfg.markdown.render if markdown is None else markdown
+    render_md = _should_render_markdown(markdown, wf, cfg.markdown.render)
     if isinstance(result, str) and render_md:
         render_markdown(console, result)
     else:
@@ -137,6 +150,38 @@ def tui():
     def _list(wfs: List[Workflow]) -> List[Workflow]:
         return sorted(wfs, key=lambda wf: wf.name.lower())
 
+    def _prompt_for_params(wf: Workflow, provided: Dict[str, str]) -> Dict[str, object]:
+        try:
+            sig = inspect.signature(wf.func)
+        except (ValueError, TypeError):
+            return provided
+        params: Dict[str, object] = dict(provided)
+        for name, param in sig.parameters.items():
+            if param.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
+                continue
+            if name in params:
+                continue
+            default = param.default
+            has_default = default is not inspect._empty
+            while True:
+                if has_default:
+                    prompt = f"{name} [default={default}]: "
+                else:
+                    prompt = f"{name}: "
+                try:
+                    value = input(prompt).strip()
+                except (EOFError, KeyboardInterrupt):
+                    console.print("Exiting.")
+                    raise typer.Exit()
+                if value:
+                    params[name] = value
+                    break
+                if has_default:
+                    params[name] = default
+                    break
+                console.print(Text(f"'{name}' is required", style="red"))
+        return params
+
     def draw_menu():
         console.clear()
         console.rule("AgnoCLI")
@@ -148,7 +193,9 @@ def tui():
         for i, wf in enumerate(wfs, start=1):
             table.add_row(str(i), wf.name, wf.description or "")
         console.print(table)
-        console.print("Commands: [number]=run, s [number]=switch, r [name]=run, q=quit")
+        console.print(
+            "Commands: [number]=run, s [number]=switch, r [name]=run, <name> [key=value ...]=run with args, q=quit"
+        )
         return wfs
 
     while True:
@@ -162,6 +209,46 @@ def tui():
             continue
         if cmd.lower() in {"q", "quit", "exit"}:
             break
+        # Unified command parsing: support both ": image ..." and "image ..."
+        # If the line starts with a colon, strip it, then fall through to the same parser.
+        if cmd.startswith(":"):
+            cmd = cmd[1:].lstrip()
+        # Try to interpret the command as: <workflow_name> [key=value ...]
+        try:
+            parts = shlex.split(cmd)
+        except ValueError as e:
+            # If it wasn't a colon form and also not parsable, we'll handle other commands below
+            parts = []
+        if parts:
+            name = parts[0]
+            wf = get_workflow(name)
+            if wf:
+                kv_items = [p for p in parts[1:] if "=" in p]
+                try:
+                    params = _parse_args(kv_items)
+                except typer.BadParameter as e:
+                    console.print(Text(str(e), style="red"))
+                    continue
+                # Filter unknown params based on workflow signature to avoid TypeError
+                try:
+                    sig = inspect.signature(wf.func)
+                    valid_keys = set(sig.parameters.keys())
+                    filtered_params = {k: v for k, v in params.items() if k in valid_keys}
+                    unknown = set(params.keys()) - valid_keys
+                    if unknown:
+                        console.print(Text(f"Ignoring unknown params: {', '.join(sorted(unknown))}", style="yellow"))
+                except (ValueError, TypeError):
+                    # If signature unavailable, pass as-is
+                    filtered_params = params
+                filtered_params = _prompt_for_params(wf, filtered_params)
+                result = run_workflow(wf, filtered_params)
+                render_md = _should_render_markdown(None, wf, cfg.markdown.render)
+                if isinstance(result, str) and render_md:
+                    render_markdown(console, result)
+                else:
+                    render_plain(console, str(result))
+                #input("[enter] to continue...")
+                continue
         if cmd[0].isdigit():
             try:
                 idx = int(cmd) - 1
@@ -169,12 +256,14 @@ def tui():
             except Exception:
                 console.print(Text("Invalid selection", style="red"))
                 continue
-            result = run_workflow(wf, {})
-            if isinstance(result, str) and cfg.markdown.render:
+            params = _prompt_for_params(wf, {})
+            result = run_workflow(wf, params)
+            render_md = _should_render_markdown(None, wf, cfg.markdown.render)
+            if isinstance(result, str) and render_md:
                 render_markdown(console, result)
             else:
                 render_plain(console, str(result))
-            input("[enter] to continue...")
+            #input("[enter] to continue...")
             continue
         if cmd.startswith("s "):
             try:
@@ -191,12 +280,14 @@ def tui():
             if not wf:
                 console.print(Text(f"Workflow '{name}' not found", style="red"))
                 continue
-            result = run_workflow(wf, {})
-            if isinstance(result, str) and cfg.markdown.render:
+            params = _prompt_for_params(wf, {})
+            result = run_workflow(wf, params)
+            render_md = _should_render_markdown(None, wf, cfg.markdown.render)
+            if isinstance(result, str) and render_md:
                 render_markdown(console, result)
             else:
                 render_plain(console, str(result))
-            input("[enter] to continue...")
+            #input("[enter] to continue...")
             continue
         console.print(Text("Unknown command", style="yellow"))
 

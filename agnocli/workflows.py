@@ -14,12 +14,22 @@ class Workflow:
     name: str
     description: str
     func: Callable[..., Any]
+    render_markdown: Optional[bool] = None
 
 
-def register_workflow(name: Optional[str] = None, description: str = ""):
+def register_workflow(
+    name: Optional[str] = None,
+    description: str = "",
+    render_markdown: Optional[bool] = None,
+):
     def decorator(func: Callable[..., Any]):
         wf_name = name or func.__name__
-        _REGISTRY[wf_name] = Workflow(name=wf_name, description=description, func=func)
+        _REGISTRY[wf_name] = Workflow(
+            name=wf_name,
+            description=description,
+            func=func,
+            render_markdown=render_markdown,
+        )
         return func
 
     return decorator

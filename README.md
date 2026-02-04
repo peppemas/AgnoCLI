@@ -38,12 +38,14 @@ Workflows are registered via a decorator:
 ```
 from agnocli.workflows import register_workflow
 
-@register_workflow(name="hello", description="Hello example")
+@register_workflow(name="hello", description="Hello example", render_markdown=True)
 def hello(name: str = "world"):
     return f"# Hello, {name}!\n\nThis is **Markdown** with a table:\n\n| A | B |\n|---|---|\n| 1 | 2 |"
 ```
 
 Point `workflows_module` to the Python module where these functions live.
+
+You can set `render_markdown=False` per workflow to force plain output, or leave it unset to use config/CLI defaults.
 
 #### CLI Usage
 ```

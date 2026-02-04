@@ -1,6 +1,6 @@
-workflows_module: examples.sample_agents
-default_workflow: basic
+workflows_module: examples.vxworkflow
+default_workflow: hello
 markdown:
-  render: true
+  render: false
 ansi:
   force: false
