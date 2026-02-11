@@ -1,4 +1,4 @@
-workflows_module: examples.vxworkflow
+workflows_module: examples.sample_agents
 default_workflow: hello
 markdown:
   render: false

@@ -7,3 +7,4 @@ colorama>=0.4.6
 ollama
 yfinance
 ddgs
+openai
