@@ -69,6 +69,22 @@ def image_flow(request: str = "generate an image of a cat." , style: str = "toon
     agent.print_response(request, stream=True)
     return ""
 
+@register_workflow(name="music", description="Generate prompt for music")
+def music_flow(request: str = "generate an image of a cat." , style: str = "toon") -> str:
+    agent = Agent(
+        model=Ollama(id=OLLAMA_MODEL),
+        instructions=[
+            f"generate a detailed prompt for generating a composition with lyrics with the following style: {style}",
+            "if user ask to generate the music just generate the prompt.",
+            "*DO NOT* use tables, list, etc.",
+            "*DO NOT* write anything else"
+        ],
+        markdown=True,
+        debug_mode=False,
+    )
+    agent.print_response(request, stream=True)
+    return ""
+
 @register_workflow(name="collaboration", description="An example of collaboration between agents")
 def collaboration_flow() -> str:
     reddit_researcher = Agent(

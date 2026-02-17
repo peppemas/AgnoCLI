@@ -182,6 +182,15 @@ def tui():
                 console.print(Text(f"'{name}' is required", style="red"))
         return params
 
+    def _pause():
+        """Wait for the user to press Enter before returning to the menu."""
+        console.print()
+        console.rule(style="dim")
+        try:
+            input("Press Enter to return to menu...")
+        except (EOFError, KeyboardInterrupt):
+            pass
+
     def draw_menu():
         console.clear()
         console.rule("AgnoCLI")
@@ -247,7 +256,7 @@ def tui():
                     render_markdown(console, result)
                 else:
                     render_plain(console, str(result))
-                #input("[enter] to continue...")
+                _pause()
                 continue
         if cmd[0].isdigit():
             try:
@@ -263,7 +272,7 @@ def tui():
                 render_markdown(console, result)
             else:
                 render_plain(console, str(result))
-            #input("[enter] to continue...")
+            _pause()
             continue
         if cmd.startswith("s "):
             try:
@@ -287,7 +296,7 @@ def tui():
                 render_markdown(console, result)
             else:
                 render_plain(console, str(result))
-            #input("[enter] to continue...")
+            _pause()
             continue
         console.print(Text("Unknown command", style="yellow"))
 
